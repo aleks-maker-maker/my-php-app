@@ -2,7 +2,7 @@
 
 Десятая практическая работа. Цель — настроить CI для консольного приложения PHP 8.2: проверить исходники и тесты, собрать Docker-образ и сохранить его как артефакт. Программа выводит `Hello from PHP in Docker! 🐳`. [Методичка преподавателя](https://github.com/rurewa/imfua/blob/main/content/DevOps/CI_CD/Pipelines/PHP.md)
 
-Проверки ниже выполнены локально. Первый запуск GitHub Actions состоится после публикации проекта в `main`.
+Локальные проверки и первый запуск GitHub Actions прошли. Docker-образ из артефакта восстановлен и проверен локально. [Первый запуск](https://github.com/aleks-maker-maker/my-php-app/actions/runs/44564921824)
 
 ## Структура проекта
 
@@ -107,3 +107,59 @@ Workflow реагирует на push и pull request для `main` и `master`.
 ### Приветствие, код выхода и пользователь контейнера
 
 ![Приветствие, код выхода и пользователь контейнера](screenshots/05-docker-run.png)
+
+## Результаты GitHub Actions и Docker-артефакта
+
+Первый запуск для коммита `04b9c9a` завершился со статусом **Success**. [Запуск № 1](https://github.com/aleks-maker-maker/my-php-app/actions/runs/44564921824) · [Запуски для ветки main](https://github.com/aleks-maker-maker/my-php-app/actions/workflows/ci.yml?query=branch%3Amain)
+
+| Задание | Статус | Что подтверждено в логах |
+| --- | --- | --- |
+| [Syntax Check](https://github.com/aleks-maker-maker/my-php-app/actions/runs/44564921824/job/135703938427) | Success | `composer validate --strict` и синтаксис трёх PHP-файлов. |
+| [Run Tests](https://github.com/aleks-maker-maker/my-php-app/actions/runs/44564921824/job/135704059960) | Success | Установка из `composer.lock`, PHPUnit 11.5.58, 4 теста и 7 проверок. |
+| [Build Docker Image](https://github.com/aleks-maker-maker/my-php-app/actions/runs/44564921824/job/135704204732) | Success | Сборка, загрузка артефакта, точное приветствие, код выхода 0 и `appuser` с UID 1000. |
+
+Артефакт **docker-image**, ID `14550589509`. Размер ZIP — **179 130 287 байт**. SHA‑256 ZIP — `38612ab95560f84fa65084d35738176dd2aec4ece4f9b0ad7fadd9d85eeaf3af`. Внутри ZIP находится `docker-image.tar.gz`. [Артефакт первого запуска](https://github.com/aleks-maker-maker/my-php-app/actions/runs/44564921824/artifacts/14550589509)
+
+Размер и SHA‑256 скачанного ZIP совпали с данными GitHub. Команда `docker load` восстановила `my-php-app:latest`. Образ вывел `Hello from PHP in Docker! 🐳` с переводом строки, завершился с кодом `0` и запустился от `appuser` с UID `1000`.
+
+### Восстановление образа в PowerShell
+
+Войдите на GitHub, скачайте ZIP со страницы артефакта и сохраните его как `docker-image.zip` в отдельной временной папке. Выполните команды из этой папки.
+
+~~~powershell
+$expectedSha256 = '38612ab95560f84fa65084d35738176dd2aec4ece4f9b0ad7fadd9d85eeaf3af'
+$actualSha256 = (Get-FileHash -LiteralPath .\docker-image.zip -Algorithm SHA256).Hash
+if ($actualSha256 -ine $expectedSha256) { throw 'SHA-256 mismatch' }
+Expand-Archive -LiteralPath .\docker-image.zip -DestinationPath .\expanded
+docker load -i .\expanded\docker-image.tar.gz
+if ($LASTEXITCODE -ne 0) { throw 'docker load failed' }
+docker run --rm --network none my-php-app:latest
+if ($LASTEXITCODE -ne 0) { throw 'Application failed' }
+docker run --rm --network none my-php-app:latest id
+~~~
+
+Для другого запуска используйте его ZIP и значение `digest` из GitHub. Артефакт хранится семь дней.
+
+### Сводка первого запуска
+
+![Статус Success и последовательность трёх заданий](screenshots/06-actions-workflow.png)
+
+### Syntax Check
+
+![Проверки Composer и синтаксиса PHP в GitHub Actions](screenshots/07-syntax-job.png)
+
+### Run Tests
+
+![Установка зависимостей и запуск PHPUnit](screenshots/08-phpunit-job.png)
+
+### Build Docker Image
+
+![Docker build, публикация артефакта и проверка контейнера](screenshots/09-docker-job.png)
+
+### Артефакт docker-image
+
+![Артефакт с размером и контрольной суммой на странице GitHub Actions](screenshots/10-actions-artifact.png)
+
+### Восстановление и запуск образа
+
+![Проверка SHA‑256 ZIP, docker load, приветствие, код выхода и UID](screenshots/11-artifact-docker-run.png)
